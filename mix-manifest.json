@@ -1,0 +1,8 @@
+{
+    "/dist/js/background.js": "/dist/js/background.js",
+    "/dist/js/popup.js": "/dist/js/popup.js",
+    "/dist/js/options.js": "/dist/js/options.js",
+    "/dist/css/options.css": "/dist/css/options.css",
+    "/dist/css/popup.css": "/dist/css/popup.css",
+    "/dist/images/extension-icon.png": "/dist/images/extension-icon.png"
+}
