@@ -3,11 +3,13 @@
     "version": "1.0.0",
     "description": "punch in your face MTFC",
     "permissions": [
+        "tabs",
         "storage",
         "webRequest",
-        "webRequestBlocking",
-        "scripting",
-        "cloud.nueip.com"
+        "scripting"
+    ],
+    "host_permissions": [
+        "https://cloud.nueip.com/*"
     ],
     "icons": {
         "16": "images/extension-icon.PNG",
@@ -15,12 +17,16 @@
         "128": "images/extension-icon.PNG"
     },
     "background": {
-        "scripts": ["js/background.js"]
+        "service_worker": "background.js"
     },
-    "browser_action": {
+    "web_accessible_resources": [{
+        "resources": ["setting.json"],
+        "matches": ["<all_urls>"]
+    }],
+    "action": {
         "default_popup": "popup.html",
         "default_icon": "images/extension-icon.PNG"
     },
     "options_page": "options.html",
-    "manifest_version": 2
+    "manifest_version": 3
 }

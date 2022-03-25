@@ -1,23 +1,19 @@
-const { default: axios } = require("axios");
 
 function settingRelatedScript() {
     targetDomain = getDomain(setting.targetSite);
 }
 
 function readTextFile(file, callback) {
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = (file) => {
-        if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
-            let fileSetting = JSON.parse(xhr.responseText);
-            Object.keys(fileSetting).forEach(key => {
-                setting[key] = fileSetting[key];
+    fetch(chrome.runtime.getURL('/setting.json'))
+        .then((response) => {
+            response.json().then((fileSetting) => {
+                Object.keys(fileSetting).forEach(key => {
+                    setting[key] = fileSetting[key];
+                });
+
+                settingRelatedScript();
             });
-            
-            settingRelatedScript();
-        }
-    };
-    xhr.open("GET", chrome.extension.getURL('./setting.json'), true);
-    xhr.send();
+        });
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -38,44 +34,52 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         case 'check-punch-out':
         case 'check-punch-in':
             if (setting.punchPath !== getPath(tab.url)) {
-                alertUser('wrong path, check-punch-in path should be: ' + setting.punchPath);
+                alertUser(tabId, 'wrong path, check-punch-in path should be: ' + setting.punchPath);
                 break;
             }
 
-            let code = 'document.cookie';
-            chrome.tabs.executeScript(tabId, { code: code }, (results) => {
+            chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                func: () => {
+                    return document.cookie;
+                },
+            }, (results) => {
                 let cookie = results[0];
-                if (!cookie) {
-                    alertUser('not getting cookie!');
+                if (!cookie || !cookie.result) {
+                    alertUser(tabId, 'not getting cookie!');
 
                     return;
                 }
 
+                cookie = cookie.result;
                 let csrfTokenMatch = cookie.match(/(csrf_token=)([^;]+)/);
                 if (!csrfTokenMatch) {
-                    alertUser('not getting csrf token');
+                    alertUser(tabId, 'not getting csrf token');
                 }
-                
+
                 setting.apiHeader['x-csrf-token'] = csrfTokenMatch[2];
                 setting.apiHeader['Cookie'] = cookie;
-            
-                axios.post(setting.clockApi, [], {
+
+                fetch(setting.clockApi, {
+                    method: 'POST',
                     headers: setting.apiHeader,
-                }).then(response => {
-                    let checkColumn = (manipulateType === 'check-punch-in') ? 'A1' : 'A2';
-                    if (!response.data.user[checkColumn]) {
-                        alertUser('U havent ' + ((manipulateType === 'check-punch-in') ? 'punch in!' : 'punch out!'));
-                    } else {
-                        chrome.tabs.remove(tabId, () => {});
-                    }
-                }).catch(error => {
-                    alertUser('clockApi error', error);
-                });
+                })
+                    .then(response => {
+                        response.json().then((data) => {
+                            let checkColumn = (manipulateType === 'check-punch-in') ? 'A1' : 'A2';
+                            if (!data.user[checkColumn]) {
+                                alertUser(tabId, 'U havent ' + ((manipulateType === 'check-punch-in') ? 'punch in!' : 'punch out!'));
+                            } else {
+                                chrome.tabs.remove(tabId, () => {});
+                            }
+                        });
+                    })
+                    .catch(error => alertUser(tabId, 'clockApi error', error));
             });
 
             break;
         default:
-            alertUser('unknown manipulate-type');
+            alertUser(tabId, 'unknown manipulate-type');
     }
 });
 
@@ -83,10 +87,20 @@ function getDomain(url) {
     return url.replace('http://','').replace('https://','').split(/[/?#]/)[0];
 }
 
-function alertUser(msg, error = null) {
-    alert(msg);
-    
+
+function alertUser(tabId, msg, error = null) {
+    chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: (msg) => {
+            alert(msg);
+
+            return 'error';
+        },
+        args: [msg],
+    }, () => {});
+
     if (error) {
+        console.log('alert user error');
         console.log(error);
     }
 }
@@ -109,7 +123,7 @@ let setting = {
         'x-csrf-token': '',
         'Cookie': '',
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        authority: 'cloud.nueip.com',  
+        authority: 'cloud.nueip.com',
     },
 };
 
