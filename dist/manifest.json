@@ -6,6 +6,7 @@
         "tabs",
         "storage",
         "webRequest",
+        "webNavigation",
         "scripting"
     ],
     "host_permissions": [
