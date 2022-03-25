@@ -15,8 +15,49 @@ function readTextFile(file, callback) {
     });
 }
 
+function checkRecheckPunch(tabId) {
+    if (!recheckPunch[tabId]) {
+        return;
+    }
+
+    let reopenTime = new URL(recheckPunch[tabId].url).searchParams.get('reopenTime');
+    if (!reopenTime || parseInt(reopenTime) >= setting.reopenAlertTimes) {
+        return;
+    }
+
+    fetch(setting.clockApi, {
+        method: 'POST',
+        headers: setting.apiHeader,
+    })
+    .then(response => {
+        response.json().then((data) => {
+            if (!data.user[recheckPunch[tabId].checkColumn]) {
+                chrome.tabs.create({
+                    url: recheckPunch[tabId].url,
+                }).then(tab => {
+                    alertTabCreated[tab.id] = true;
+                });
+            }
+
+            delete(recheckPunch[tabId]);
+        });
+    });
+}
+
+async function getTabs() {
+    let queryOptions = { active: true, currentWindow: true };
+    let tabs = await chrome.tabs.query(queryOptions);
+    return tabs[0];
+}
+
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+    checkRecheckPunch(tabId);
+});
+
 chrome.webNavigation.onBeforeNavigate.addListener(
     (tab) => {
+        checkRecheckPunch(tab.tabId);
+
         if (targetDomain !== getDomain(tab.url)) {
             return;
         }
@@ -34,7 +75,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(
 
         redirectedUrl = tab.url;
     }
-)
+);
 
 chrome.webNavigation.onCompleted.addListener(
     (tab) => {
@@ -72,19 +113,31 @@ chrome.webNavigation.onCompleted.addListener(
                     chrome.tabs.update(
                         tab.tabId,
                         { url: redirectedUrl }
-                    );   
+                    );
                 }
             })
             .catch(error => alertUser(tab.tabId, 'clockApi error', error));
         });
     }
-  )
+  );
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete') {
+        if (!alertTabCreated[tabId]) {
+            return;
+        }
+
+        alertUser(tabId, 'Heyyyyyyyyyyyyyyyyyyyyyy! u need to do something!');
+
+        delete alertTabCreated[tabId];
+
+        return;
+    }
+
     if (changeInfo.status !== 'loading') {
         return '';
     }
-    
+
     if (targetDomain !== getDomain(tab.url)) {
         return;
     }
@@ -94,14 +147,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         return;
     }
 
+    if (setting.punchPath !== getPath(tab.url)) {
+        alertUser(tabId, 'wrong path, check-punch-in path should be: ' + setting.punchPath);
+        return;
+    }
+
     switch (manipulateType) {
         case 'check-punch-out':
         case 'check-punch-in':
-            if (setting.punchPath !== getPath(tab.url)) {
-                alertUser(tabId, 'wrong path, check-punch-in path should be: ' + setting.punchPath);
-                break;
-            }
-
             chrome.scripting.executeScript({
                 target: { tabId: tabId },
                 func: () => {
@@ -123,6 +176,105 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                             alertUser(tabId, 'U havent ' + ((manipulateType === 'check-punch-in') ? 'punch in!' : 'punch out!'));
                         } else {
                             chrome.tabs.remove(tabId, () => {});
+                        }
+                    });
+                })
+                .catch(error => alertUser(tabId, 'clockApi error', error));
+            });
+
+            break;
+        case 'punch-in':
+        case 'punch-out':
+            chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                func: () => {
+                    return document.cookie;
+                },
+            }, (results) => {
+                if (!handleNueipApi(results)) {
+                    return;
+                }
+
+                setTimeout(() => {
+                    fetch(setting.clockApi, {
+                        method: 'POST',
+                        headers: setting.apiHeader,
+                    })
+                    .then(response => {
+                        response.json().then((data) => {
+                            let checkColumn = (manipulateType === 'punch-in') ? 'A1' : 'A2';
+                            if (!data.user[checkColumn]) {
+                                alertUser(tabId, 'Hey! Do something, member that?');
+                            }
+                    })});
+                }, 20000);
+
+                fetch(setting.clockApi, {
+                    method: 'POST',
+                    headers: setting.apiHeader,
+                })
+                .then(response => {
+                    response.json().then((data) => {
+                        let checkColumn = (manipulateType === 'punch-in') ? 'A1' : 'A2';
+                        if (!data.user[checkColumn]) {
+                            let url = new URL(tab.url);
+                            let reopenTime = url.searchParams.get('reopenTime');
+                            url.searchParams.set('reopenTime', (reopenTime) ? parseInt(reopenTime) + 1 : 1);
+                            recheckPunch[tabId] = {
+                                checkColumn: checkColumn,
+                                url: url.href,
+                            };
+
+                            if (manipulateType === 'punch-out' && data.user['A1']) {
+                                let dayStart = new Date(data.user.day + ' ' + data.user['A1']);
+                                let workHour = (new Date() - dayStart) / 1000 / 3600;
+                                if (workHour < setting.workHour) {
+                                    alertUser(tabId, 'u havent work enough yet! current hour: ' + workHour);
+                                }
+                            }
+
+                            let btnId = (manipulateType === 'punch-in') ? 'clockin' : 'clockout';
+                            let styles = `
+                            @keyframes flickerAnimation {
+                              0%   { opacity:1; }
+                              50%  { opacity:0; }
+                              100% { opacity:1; }
+                            }
+                            @-o-keyframes flickerAnimation{
+                              0%   { opacity:1; }
+                              50%  { opacity:0; }
+                              100% { opacity:1; }
+                            }
+                            @-moz-keyframes flickerAnimation{
+                              0%   { opacity:1; }
+                              50%  { opacity:0; }
+                              100% { opacity:1; }
+                            }
+                            @-webkit-keyframes flickerAnimation{
+                              0%   { opacity:1; }
+                              50%  { opacity:0; }
+                              100% { opacity:1; }
+                            }
+                            #`+ btnId + ` {
+                               -webkit-animation: flickerAnimation .5s infinite;
+                               -moz-animation: flickerAnimation .5s infinite;
+                               -o-animation: flickerAnimation .5s infinite;
+                                animation: flickerAnimation .5s infinite;
+                            }
+                            `;
+
+                            chrome.scripting.executeScript({
+                                target: { tabId: tabId },
+                                args: [styles],
+                                func: (styles) => {
+                                    let styleSheet = document.createElement('style');
+                                    styleSheet.innerText = styles;
+                                    document.head.appendChild(styleSheet);
+                                },
+                            }, (results) => {});
+                        } else {
+                            alertUser(tabId, 'u have already ' + ((manipulateType === 'punch-in') ?
+                                'punch in ' : 'punch out'));
                         }
                     });
                 })
@@ -184,7 +336,6 @@ function getPath(url) {
     return new URL(url).pathname;
 }
 
-
 // script
 readTextFile();
 
@@ -202,7 +353,11 @@ let setting = {
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
         authority: 'cloud.nueip.com',
     },
+    workHour: 8.0,
+    reopenAlertTimes: 10,
 };
 
 let targetDomain = '';
 let redirectedUrl = '';
+let recheckPunch = {};
+let alertTabCreated = {};
