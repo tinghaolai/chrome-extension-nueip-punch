@@ -54,5 +54,5 @@ Add schedule at the time when u want to punch in / out.
 ```
 
 Optional setting
-* `workHour`, type: `float`, default: `8.0`: punch out work time checking
+* `workHour`, type: `float`, default: `9.0`: punch out work time checking
 * `reopenAlertTimes`, type: `int`, default: `10`: Reopen times if forget punch in / out 

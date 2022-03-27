@@ -353,7 +353,7 @@ let setting = {
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
         authority: 'cloud.nueip.com',
     },
-    workHour: 8.0,
+    workHour: 9.0,
     reopenAlertTimes: 10,
 };
 
