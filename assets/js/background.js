@@ -1,5 +1,17 @@
 function settingRelatedScript() {
     targetDomain = getDomain(setting.targetSite);
+    getCurrentTab().then(tab => {
+        if (
+            targetDomain !== getDomain(tab.url) ||
+            setting.loginPath !== getPath(tab.url)
+        ) {
+            return;
+        }
+    
+        setTimeout(() => {
+            chrome.tabs.update(tab.id, { url: 'https://cloud.nueip.com/home?manipulate-type=punch-in' }); 
+        }, 1000);
+    });
 }
 
 function readTextFile(file, callback) {
@@ -44,7 +56,7 @@ function checkRecheckPunch(tabId) {
     });
 }
 
-async function getTabs() {
+async function getCurrentTab() {
     let queryOptions = { active: true, currentWindow: true };
     let tabs = await chrome.tabs.query(queryOptions);
     return tabs[0];
