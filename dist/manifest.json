@@ -13,9 +13,9 @@
         "https://cloud.nueip.com/*"
     ],
     "icons": {
-        "16": "images/extension-icon.PNG",
-        "48": "images/extension-icon.PNG",
-        "128": "images/extension-icon.PNG"
+        "16": "images/extension-icon.png",
+        "48": "images/extension-icon.png",
+        "128": "images/extension-icon.png"
     },
     "background": {
         "service_worker": "background.js"
@@ -26,7 +26,7 @@
     }],
     "action": {
         "default_popup": "popup.html",
-        "default_icon": "images/extension-icon.PNG"
+        "default_icon": "images/extension-icon.png"
     },
     "options_page": "options.html",
     "manifest_version": 3
